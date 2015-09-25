@@ -198,10 +198,7 @@ var updatePins = function(token) {
   }
     
   getMatches(token);
-  //recall update every 5 minutes
-  setInterval(function(token){
-    updatePins(token);
-  },60000);
+
 };
 
 
