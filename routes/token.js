@@ -35,9 +35,7 @@ var updatePins = function(token) {
   //var FEED_URL = 'http://cmsapi.pulselive.com/rugby/event/1238/schedule?language=en&client=pulse';
   var API_URL_ROOT = 'timeline-api.getpebble.com';
   
-  function timelineRequest(pins, type,token,index) {
-  
-    var pin = pins[index];
+  function timelineRequest(pin, type,token) {
     var options = {
       host: API_URL_ROOT,
       port: 443,
@@ -51,17 +49,11 @@ var updatePins = function(token) {
     
     jsonReq(options,function (stat,json) {
       console.log('timeline res: '+ json)
-      if (pins.length > index + 1){
-          timelineRequest(pins,type,token,index+1);  
-        }
-        else {
-          console.log('Pin sending complete');    
-        }
     },pin);   
   }
   
-  function insertUserPins(pins,token) {
-    timelineRequest(pins, 'PUT',token,0);
+  function insertUserPins(pin,token) {
+    timelineRequest(pin, 'PUT',token);
   }
   
   /**
@@ -70,7 +62,7 @@ var updatePins = function(token) {
   * @param callback The callback to receive the responseText after the request has completed.
   */
   function deleteUserPins(pins,token) {
-    timelineRequest(pins, 'DELETE',token,0);
+    timelineRequest(pins, 'DELETE',token);
   }
   
   var matchToPin = function (match) {
@@ -94,6 +86,23 @@ var updatePins = function(token) {
         "scoreHome": match.scores[1].toString(),
         "sportsGameState": stat[match.status]
       },
+      "updateNotification": {
+          "time": new Date().toISOString(),
+          "layout": {
+            "type": "sportsPin",
+            "title": match.teams[0].name + "-" + match.teams[1].name ,
+            "subtitle": match.scores[0].toString() + "-" + match.scores[1].toString() + " " + subt[match.status],
+            "body": match.description + ", " + match.eventPhase + " @ " + match.venue.name,
+            "tinyIcon": "system://images/AMERICAN_FOOTBALL",
+            "largeIcon": "system://images/AMERICAN_FOOTBALL",
+            "lastUpdated": new Date().toISOString(),
+            "nameAway": match.teams[0].abbreviation,
+            "nameHome": match.teams[1].abbreviation,
+            "scoreAway": match.scores[0].toString(),
+            "scoreHome": match.scores[1].toString(),
+            "sportsGameState": stat[match.status]
+          }
+        },
       "reminders": [
         {
           "time": new Date(mtime - (60000 * 15)).toISOString(),
@@ -125,102 +134,44 @@ var updatePins = function(token) {
         }
       ]
     }
+  };
+  
+  var recKeyGen = function(match) {
+    return {
+      id:  match.matchId.toString(),
+      key: match.status + match.scores[0].toString() + '-' + match.scores[1].toString(),
+    }
   }
   
-  var parseScheduleToPins = function(msg) {
-    var stat ={'C':'in-game','U':'pre-game'};
-    var subt = {'C':'Finished','U':'Unplayed'};
-    var pins = [];
+  
+  var parseScheduleToPins = function(msg,token,sendPin) {
     var now = new Date().getTime();
     for(var i = 0;i < msg.matches.length;i++) {
       var match = msg.matches[i];
       var mtime = match.time.millis;
       if ( Math.abs(now - mtime) < 172800000) { 
         // valid match found so check for it in repo
-        azure.getAll(function (results) {
-          
-        })
+        var irecKey = recKeyGen(match)
         
-        
-        pins.push({
-          "id": match.matchId.toString(),
-          "time":  new Date(mtime).toISOString(),
-          "layout": {
-            "type": "sportsPin",
-            "title": match.teams[0].name + "-" + match.teams[1].name ,
-            "subtitle": match.scores[0].toString() + "-" + match.scores[1].toString() + " " + subt[match.status],
-            "body": match.description + ", " + match.eventPhase + " @ " + match.venue.name,
-            "tinyIcon": "system://images/AMERICAN_FOOTBALL",
-            "largeIcon": "system://images/AMERICAN_FOOTBALL",
-            "lastUpdated": new Date().toISOString(),
-            "nameAway": match.teams[0].abbreviation,
-            "nameHome": match.teams[1].abbreviation,
-            "scoreAway": match.scores[0].toString(),
-            "scoreHome": match.scores[1].toString(),
-            "sportsGameState": stat[match.status]
-            
-          },
-  //        "createNotification": {
-  //            "layout": {
-    //            "type": "genericNotification",
-      //          "title": "New Item Game Added",
-        //        "tinyIcon": "system://images/AMERICAN_FOOTBALL",
-          //      "body": "A new Game has been added to your calendar."
-            //  }
-            //},
-            "updateNotification": {
-              "time": new Date().toISOString(),
-              "layout": {
-                "type": "sportsPin",
-                "title": match.teams[0].name + "-" + match.teams[1].name ,
-                "subtitle": match.scores[0].toString() + "-" + match.scores[1].toString() + " " + subt[match.status],
-                "body": match.description + ", " + match.eventPhase + " @ " + match.venue.name,
-                "tinyIcon": "system://images/AMERICAN_FOOTBALL",
-                "largeIcon": "system://images/AMERICAN_FOOTBALL",
-                "lastUpdated": new Date().toISOString(),
-                "nameAway": match.teams[0].abbreviation,
-                "nameHome": match.teams[1].abbreviation,
-                "scoreAway": match.scores[0].toString(),
-                "scoreHome": match.scores[1].toString(),
-                "sportsGameState": stat[match.status]
-              }
-            },
-          "reminders": [
-          {
-            "time": new Date(mtime  - (60000 *15)).toISOString(),
-            "layout": {
-              "type": "genericReminder",
-              "tinyIcon": "system://images/TIMELINE_CALENDAR",
-              "title": match.teams[0].name + "-" + match.teams[1].name + " starts in 15 minutes"
+        azure.getById(irecKey.id,match,irecKey,function (result,match,recKey) {
+          if (result) {
+            //result for match found in DB
+            if(result != recKey.key){
+              //entry found but data doesnt match so push through for updates
+              sendPin(matchToPin(match),token)
+              azure.updateEnity(recKey.id,recKey.key)
+            } else { 
+              console.log('no update requried for match ' + recKey.id + ':' + recKey.key)
             }
-          },
-          {
-            "time": new Date(mtime  - (60000 *5)).toISOString(),
-            "layout": {
-              "type": "genericReminder",
-              "tinyIcon": "system://images/TIMELINE_CALENDAR",
-              "title": match.teams[0].name + "-" + match.teams[1].name + " starts in 5 minutes"
-            }
+          } else {
+            //no entry found for match so add key and pin
+           azure.addEntity(recKey.id,recKey.key)
+           sendPin(matchToPin(match),token)
           }
-    ],
-    "actions": [
-      {
-        "title": "View Schedule",
-        "type": "openWatchApp",
-        "launchCode": 15
-      },
-      {
-        "title": "Show Directions",
-        "type": "openWatchApp",
-        "launchCode": 22
-      }
-    ]
-  
           
         });
       }
     }
-    return pins;
   };
 
   var getMatches = function(token) {
@@ -237,9 +188,12 @@ var updatePins = function(token) {
     jsonReq(options,function (stat,jsonStr) {
         console.log('feed: '+ jsonStr);
         var json = JSON.parse(jsonStr);
-        var pins = parseScheduleToPins(json);
-        console.log('pins: ' + JSON.stringify(pins));
-        insertUserPins(pins,token);
+        parseScheduleToPins(json,token,function (pin,token) {
+            console.log('pin generated: ' + JSON.stringify(pin));
+            insertUserPins(pin,token);
+        });
+
+        ;
     });
   }
     
