@@ -149,7 +149,7 @@ var updatePins = function(token) {
     for(var i = 0;i < msg.matches.length;i++) {
       var match = msg.matches[i];
       var mtime = match.time.millis;
-      if ( Math.abs(now - mtime) < 172800000) { 
+      if ( Math.abs(now - mtime) < 259200000) { 
         // valid match found so check for it in repo
         var irecKey = recKeyGen(match)
         
