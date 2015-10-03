@@ -66,8 +66,8 @@ var updatePins = function(token) {
   }
   
   var matchToPin = function (match) {
-    var stat = { 'C': 'in-game', 'U': 'pre-game', 'L1':'in-game','L2':'in-game'};
-    var subt = { 'C': 'Finished', 'U': 'Unplayed', 'L1':'First Half','L2':'Second Half'};
+    var stat = { 'C': 'in-game', 'U': 'pre-game', 'L1':'in-game','L2':'in-game','LHT':'in-game'};
+    var subt = { 'C': 'Finished', 'U': 'Unplayed', 'L1':'First Half','L2':'Second Half','LHT':'Half-Time'};
     var mtime = match.time.millis
     return {
       "id": match.matchId.toString(),
